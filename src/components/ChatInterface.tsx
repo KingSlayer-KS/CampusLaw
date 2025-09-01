@@ -37,7 +37,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4001";
 
 /** Calls backend with JSON + Authorization header when jwt exists. Throws on !ok. */
 // ChatInterface.tsx (or your api utils)
-async function apiFetch(path: string, init: RequestInit = {}) {
+async function apiFetch<T = unknown>(path: string, init: RequestInit = {}) {
   // Helper to perform a fetch and parse response as JSON or text
   async function doFetch(withAuth = true): Promise<{ ok: boolean; status: number; data: unknown }> {
     const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
@@ -104,7 +104,7 @@ async function apiFetch(path: string, init: RequestInit = {}) {
     throw err;
   }
 
-  return data;
+  return data as T;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -520,7 +520,7 @@ export function ChatInterface() {
       console.log("[ensureBackendSession] step D: creating backend session", {
         localId,
       });
-      const created = await apiFetch("/history", {
+      const created = await apiFetch<{ session?: { id?: string }; id?: string }>("/history", {
         method: "POST",
         body: JSON.stringify({ title: "New chat" }),
       });
