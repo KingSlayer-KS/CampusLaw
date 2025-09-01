@@ -33,8 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="min-h-screen bg-background text-foreground">{children}</body>
+      <body className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background text-foreground`}>
+        {children}
+      </body>
     </html>
   );
 }
-
