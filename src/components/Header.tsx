@@ -1,4 +1,4 @@
-import { Menu, X, MapPin, Phone, AlertTriangle } from "lucide-react";
+import { Menu, X, MapPin, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
 

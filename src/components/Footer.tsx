@@ -1,4 +1,4 @@
-import { MapPin, Mail, Phone, ExternalLink, AlertTriangle, Scale } from "lucide-react";
+import { MapPin, Phone, ExternalLink, AlertTriangle, Scale } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Alert, AlertDescription } from "./ui/alert";

@@ -45,9 +45,9 @@ export default function LoginPage() {
 
           console.log("[login] success", { userId: data.user?.id });
           router.replace("/chat");
-        } catch (e: any) {
+        } catch (e: unknown) {
           console.error("[login] error", e);
-          setError(e?.message || "Login failed");
+          setError(e instanceof Error ? e.message : "Login failed");
         } finally {
           setLoading(false);
         }

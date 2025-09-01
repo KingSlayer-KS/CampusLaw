@@ -8,8 +8,9 @@ interface AuthStatusProps {
   onLogout: () => void;
 }
 
+type BasicUser = { name?: string | null; email?: string | null } | null;
 export function AuthStatus({ onLogout }: AuthStatusProps) {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<BasicUser>(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem("legalAssistantUser");

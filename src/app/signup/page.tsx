@@ -49,9 +49,9 @@ export default function SignupPage() {
 
           console.log("[signup] success", { userId: data.user?.id });
           router.replace("/chat");
-        } catch (e: any) {
+        } catch (e: unknown) {
           console.error("[signup] error", e);
-          setError(e?.message || "Sign up failed");
+          setError(e instanceof Error ? e.message : "Sign up failed");
         } finally {
           setLoading(false);
         }

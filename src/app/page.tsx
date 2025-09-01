@@ -89,24 +89,11 @@ export default function Page() {
     }
   };
 
-  const handleLogout = () => {
-    try {
-      localStorage.removeItem("jwt");
-      localStorage.removeItem("refreshToken");
-      localStorage.removeItem("legalAssistantUser");
-    } catch {}
-    setUser(null);
-    setAuthState("login");
-    setAuthError("");
-  };
 
   if (authState === "authenticated" && user) {
     return (
       <div className="min-h-screen">
-        {/* ChatInterface doesn’t need props, but allow extras without breaking */}
-        <ChatInterface /* user={user} onLogout={handleLogout} */ />
-        {/* Add a logout button in your header if you want:
-           <button onClick={handleLogout}>Log out</button> */}
+        <ChatInterface />
       </div>
     );
   }

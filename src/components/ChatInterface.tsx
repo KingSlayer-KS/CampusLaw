@@ -21,7 +21,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import HistorySidebar, { HistoryHamburger } from "@/components/HistorySidebar";
 import { UserMenu } from "@/components/UserMenu";
-import { logoutDirect } from "@/lib/logout";
 
 /** IMPORTANT: use the hook’s types to avoid drift */
 import {

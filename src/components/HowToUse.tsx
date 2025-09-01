@@ -73,7 +73,7 @@ export function HowToUse() {
 
           {/* What You'll Get */}
           <div className="mb-16">
-            <h3 className="text-2xl font-semibold text-center mb-8">What You'll Get in Every Response</h3>
+            <h3 className="text-2xl font-semibold text-center mb-8">What You&apos;ll Get in Every Response</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {outputSections.map((section) => (
                 <Card key={section.name} className="p-6">
