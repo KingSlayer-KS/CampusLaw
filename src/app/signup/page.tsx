@@ -29,12 +29,17 @@ export default function SignupPage() {
           const name =
             [firstName, lastName].filter(Boolean).join(" ").trim() || undefined;
 
+          console.log("[signup] submitting", { email });
           const r = await fetch("/api/auth/signup", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password, name }),
           });
-          if (!r.ok) throw new Error(await r.text());
+          if (!r.ok) {
+            const txt = await r.text();
+            console.warn("[signup] failed", { status: r.status, body: txt });
+            throw new Error(txt || `Sign up failed (${r.status})`);
+          }
           const data = await r.json();
 
           // Persist auth
@@ -42,8 +47,10 @@ export default function SignupPage() {
           if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
           if (data.user) localStorage.setItem("legalAssistantUser", JSON.stringify(data.user));
 
+          console.log("[signup] success", { userId: data.user?.id });
           router.replace("/chat");
         } catch (e: any) {
+          console.error("[signup] error", e);
           setError(e?.message || "Sign up failed");
         } finally {
           setLoading(false);

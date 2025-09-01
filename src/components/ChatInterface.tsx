@@ -39,56 +39,71 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4001";
 /** Calls backend with JSON + Authorization header when jwt exists. Throws on !ok. */
 // ChatInterface.tsx (or your api utils)
 async function apiFetch(path: string, init: RequestInit = {}) {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
+  // Helper to perform a fetch and parse response as JSON or text
+  async function doFetch(withAuth = true): Promise<{ ok: boolean; status: number; data: any }> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
+    const hdrs = new Headers(init.headers as HeadersInit | undefined);
+    if (!hdrs.has("Content-Type")) hdrs.set("Content-Type", "application/json");
+    if (withAuth && token) hdrs.set("Authorization", `Bearer ${token}`);
 
-  // Merge headers safely
-  const hdrs = new Headers(init.headers as HeadersInit | undefined);
-  if (!hdrs.has("Content-Type")) hdrs.set("Content-Type", "application/json");
-  if (token) hdrs.set("Authorization", `Bearer ${token}`);
-
-  // Debug: request (doesn't consume any streams)
-  console.log("[FE apiFetch] →", {
-    url: `${API_URL}${path}`,
-    method: init.method ?? "GET",
-    headers: Object.fromEntries(hdrs.entries()),
-    body: (() => {
-      try {
-        return init.body ? JSON.parse(String(init.body)) : undefined;
-      } catch {
-        return init.body;
-      }
-    })(),
-  });
-
-  const res = await fetch(`${API_URL}${path}`, { ...init, headers: hdrs });
-
-  // Read body ONCE
-  const raw = await res.text();
-
-  // Try JSON parse, fall back to text
-  let data: any = null;
-  try {
-    data = raw ? JSON.parse(raw) : null;
-  } catch {
-    data = raw;
+    console.log("[apiFetch] →", { path, method: init.method ?? "GET" });
+    const res = await fetch(`${API_URL}${path}`, { ...init, headers: hdrs });
+    const raw = await res.text();
+    let data: any = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
+    console.log("[apiFetch] ←", { path, status: res.status });
+    return { ok: res.ok, status: res.status, data };
   }
 
-  // Debug: response (safe, we already read it)
-  console.log("[FE apiFetch] ←", { status: res.status, url: res.url, data });
+  let { ok, status, data } = await doFetch(true);
 
-  if (!res.ok) {
+  // If unauthorized, attempt refresh once
+  if (!ok && status === 401) {
+    try {
+      const refreshToken =
+        typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
+      if (!refreshToken) throw new Error("No refresh token");
+
+      const r = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const t = await r.text();
+      const refData = (() => { try { return JSON.parse(t); } catch { return {}; } })();
+      if (!r.ok || !refData?.token) {
+        console.warn("[apiFetch] refresh failed", { status: r.status, body: t });
+        throw new Error("Refresh failed");
+      }
+
+      // persist
+      localStorage.setItem("jwt", refData.token);
+      if (refData.refreshToken) localStorage.setItem("refreshToken", refData.refreshToken);
+
+      // retry original once with new token
+      console.log("[apiFetch] retrying after refresh", { path });
+      ({ ok, status, data } = await doFetch(true));
+    } catch (e) {
+      // clear tokens on hard failures
+      console.error("[apiFetch] refresh error", e);
+      localStorage.removeItem("jwt");
+      // do not remove refreshToken to allow manual retry on next action if desired
+    }
+  }
+
+  if (!ok) {
     const message =
       data && typeof data === "object" && ("message" in data || "error" in data)
-        ? data.message ?? data.error
-        : `HTTP ${res.status} ${res.statusText}`;
+        ? (data.message ?? data.error)
+        : `HTTP ${status}`;
+    console.warn("[apiFetch] request failed", { path, status, message });
     const err: any = new Error(message);
-    err.status = res.status;
+    err.status = status;
     err.data = data;
     throw err;
   }
 
-  return data; // ← callers use this; do NOT call res.json() anywhere
+  return data;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -111,6 +126,7 @@ type FeedbackPayload = {
   comment?: string;
   answerSummary?: string;
   uiVersion?: string;
+  sessionId?: string;
 };
 
 async function sendFeedback(payload: FeedbackPayload) {
@@ -174,11 +190,13 @@ function FeedbackBar({
   topic,
   question,
   summary,
+  sessionId,
 }: {
   traceId: string;
   topic: "tenancy" | "traffic";
   question: string;
   summary?: string;
+  sessionId?: string;
 }) {
   const [state, setState] = useState<"idle" | "down" | "sent">("idle");
   const [reasons, setReasons] = useState<FeedbackReason[]>([]);
@@ -202,6 +220,7 @@ function FeedbackBar({
         comment: helpful ? undefined : comment.trim() || undefined,
         answerSummary: summary,
         uiVersion: "chat-1",
+        sessionId,
       });
       setState("sent");
     } catch {
@@ -548,39 +567,10 @@ export function ChatInterface() {
      /ask call with Authorization + server session id
      ────────────────────────────────────────────────────────────────────────── */
   const callLegalAPI = async (question: string, serverSessionId: string) => {
-    const token = localStorage.getItem("jwt");
-    console.log("[FE callLegalAPI] sending", {
-      question,
-      topic,
-      serverSessionId,
-      hasToken: !!token,
-    });
-
-    const r = await fetch(`${API_URL}/ask`, {
+    const raw = await apiFetch(`/ask`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        query: question,
-        topic,
-        sessionId: serverSessionId,
-      }),
+      body: JSON.stringify({ query: question, topic, sessionId: serverSessionId }),
     });
-
-    const txt = await r.text();
-    console.log("[FE callLegalAPI] received", { status: r.status, body: txt });
-
-    if (!r.ok) throw new Error(`API request failed (${r.status}) – ${txt}`);
-    const raw: any = (() => {
-      try {
-        return JSON.parse(txt);
-      } catch {
-        return {};
-      }
-    })();
-
     return toLegalResponse(question, raw);
   };
 
@@ -1003,6 +993,7 @@ export function ChatInterface() {
                                   ?.slice(0, 2)
                                   .join(" • ")
                                   .slice(0, 200)}
+                                sessionId={active?.backendId}
                               />
                             </>
                           )}

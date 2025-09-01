@@ -72,6 +72,42 @@ export function useChatHistory() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
 
+  // Small wrapper: fetch with Authorization + 401 refresh retry
+  async function fetchWithRefresh(path: string, init: RequestInit = {}) {
+    const doFetch = async (): Promise<Response> => {
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
+      const headers = new Headers(init.headers as HeadersInit | undefined);
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      if (!headers.has("Content-Type") && init.body)
+        headers.set("Content-Type", "application/json");
+      return fetch(`${API_URL}${path}`, { ...init, headers });
+    };
+
+    let res = await doFetch();
+    if (res.status === 401) {
+      try {
+        const refreshToken =
+          typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
+        if (refreshToken) {
+          const rr = await fetch(`${API_URL}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken }),
+          });
+          if (rr.ok) {
+            const data = await rr.json();
+            if (data.token) localStorage.setItem("jwt", data.token);
+            if (data.refreshToken)
+              localStorage.setItem("refreshToken", data.refreshToken);
+            res = await doFetch();
+          }
+        }
+      } catch {}
+    }
+    return res;
+  }
+
   // 1) Load local cache
   useEffect(() => {
     const s = load();
@@ -83,18 +119,12 @@ export function useChatHistory() {
   useEffect(() => {
     (async () => {
       try {
-        const token =
-          typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
-        const refresh =
-          typeof window !== "undefined"
-            ? localStorage.getItem("refreshToken")
-            : null;
-        console.log(token);
-        console.log(refresh);
+        const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
         if (!token) return;
 
         // Use the same apiFetch logic from ChatInterface with token refresh
         try {
+          console.log("[history] load sessions →");
           const r = await fetch(`${API_URL}/history`, {
             headers: { Authorization: `Bearer ${token}` },
             credentials: "include",
@@ -135,6 +165,7 @@ export function useChatHistory() {
                     });
 
                     if (!retryResponse.ok) return;
+                    console.log("[history] retry load sessions ←", { status: retryResponse.status });
                     const retryData = (await retryResponse.json()) as {
                       sessions: {
                         id: string;
@@ -193,6 +224,7 @@ export function useChatHistory() {
           }
 
           // Process successful response
+          console.log("[history] load sessions ←", { status: r.status });
           const responseData = (await r.json()) as {
             sessions: {
               id: string;
@@ -246,6 +278,55 @@ export function useChatHistory() {
     [sessions, activeId]
   );
 
+  // 3) When switching to a server-backed session with no local messages, fetch them
+  useEffect(() => {
+    const s = sessions.find((x) => x.id === activeId);
+    if (!s || !s.backendId) return;
+    if (s.messages && s.messages.length > 0) return;
+
+    (async () => {
+      try {
+        const token =
+          typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
+        console.log("[history] load messages →", { backendId: s.backendId });
+        const r = await fetch(`${API_URL}/history/${s.backendId}/messages`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (!r.ok) {
+          console.warn("[history] load messages failed", { status: r.status });
+          return; // silent fail in UI
+        }
+        const data = (await r.json()) as {
+          messages: Array<{
+            id: string;
+            role: string;
+            content: string;
+            legalResponse?: any;
+            createdAt?: string;
+          }>;
+        };
+        console.log("[history] load messages ←", { count: data.messages?.length ?? 0 });
+        const msgs = (data.messages || []).map((m) => ({
+          id: m.id,
+          type:
+            m.role === "user" || m.role === "assistant" || m.role === "error"
+              ? (m.role as Message["type"])
+              : ("assistant" as Message["type"]),
+          content: m.content ?? "",
+          legalResponse: m.legalResponse ?? undefined,
+          timestamp: m.createdAt || new Date().toISOString(),
+        }));
+        setSessions((prev) =>
+          prev.map((ss) => (ss.id === s.id ? { ...ss, messages: msgs } : ss))
+        );
+      } catch (e) {
+        console.warn("[useChatHistory] load messages failed", e);
+      }
+    })();
+  }, [activeId, sessions]);
+
   function createSession(): string {
     const s = newBlankSession();
     console.log("[useChatHistory] creating new session:", s);
@@ -270,13 +351,8 @@ export function useChatHistory() {
 
     // Also delete from backend if we have a backendId
     if (sessionToDelete?.backendId) {
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
-      fetch(`${API_URL}/history/${sessionToDelete.backendId}`, {
+      fetchWithRefresh(`/history/${sessionToDelete.backendId}`, {
         method: "DELETE",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
       }).catch((err) =>
         console.warn("[useChatHistory] delete from backend failed", err)
       );
@@ -300,14 +376,9 @@ export function useChatHistory() {
 
     // Also sync with backend if we have a backendId
     if (session?.backendId) {
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
-      fetch(`${API_URL}/history/${session.backendId}`, {
+      fetchWithRefresh(`/history/${session.backendId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
       }).catch((err) =>
         console.warn("[useChatHistory] sync rename to backend failed", err)
@@ -369,14 +440,9 @@ export function useChatHistory() {
 
       // Also sync with backend if we have a backendId
       if (active.backendId) {
-        const token =
-          typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
-        fetch(`${API_URL}/history/${active.backendId}`, {
+        fetchWithRefresh(`/history/${active.backendId}`, {
           method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title }),
         }).catch((err) =>
           console.warn("[useChatHistory] sync title to backend failed", err)

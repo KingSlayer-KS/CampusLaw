@@ -25,12 +25,17 @@ export default function LoginPage() {
         setLoading(true);
         setError(undefined);
         try {
+          console.log("[login] submitting", { email });
           const r = await fetch("/api/auth/login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
           });
-          if (!r.ok) throw new Error(await r.text());
+          if (!r.ok) {
+            const txt = await r.text();
+            console.warn("[login] failed", { status: r.status, body: txt });
+            throw new Error(txt || `Login failed (${r.status})`);
+          }
           const data = await r.json();
 
           // Persist auth
@@ -38,8 +43,10 @@ export default function LoginPage() {
           if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
           if (data.user) localStorage.setItem("legalAssistantUser", JSON.stringify(data.user));
 
+          console.log("[login] success", { userId: data.user?.id });
           router.replace("/chat");
         } catch (e: any) {
+          console.error("[login] error", e);
           setError(e?.message || "Login failed");
         } finally {
           setLoading(false);
