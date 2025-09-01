@@ -63,7 +63,7 @@ export function FindHelp() {
       description: "Life-threatening emergencies, crimes in progress"
     },
     {
-      service: "Assaulted Women's Helpline",
+      service: "Assaulted Women&apos;s Helpline",
       number: "1-866-863-0511", 
       description: "24/7 support for women experiencing abuse"
     },
@@ -97,7 +97,7 @@ export function FindHelp() {
           <Alert className="mb-12 border-red-200 bg-red-50">
             <AlertTriangle className="h-4 w-4 text-red-600" />
             <AlertDescription className="text-red-800">
-              <strong>Legal Emergency?</strong> If you're facing arrest, detention, or imminent legal deadlines, 
+              <strong>Legal Emergency?</strong> If you&apos;re facing arrest, detention, or imminent legal deadlines, 
               contact a lawyer immediately. Many lawyers offer emergency consultations.
             </AlertDescription>
           </Alert>
@@ -188,7 +188,7 @@ export function FindHelp() {
                   Get Help Immediately
                 </h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• You've been arrested or charged</li>
+                  <li>• You&apos;ve been arrested or charged</li>
                   <li>• Court deadlines approaching</li>
                   <li>• Facing eviction or foreclosure</li>
                   <li>• Discrimination or harassment</li>

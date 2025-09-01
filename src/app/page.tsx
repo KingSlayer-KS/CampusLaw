@@ -53,8 +53,8 @@ export default function Page() {
       if (data.user) localStorage.setItem("legalAssistantUser", JSON.stringify(data.user));
       setUser(data.user ?? { id: "me", email });
       setAuthState("authenticated");
-    } catch (e: any) {
-      setAuthError(e?.message || "Login failed");
+    } catch (e: unknown) {
+      setAuthError(e instanceof Error ? e.message : "Login failed");
     } finally {
       setIsLoading(false);
     }
@@ -82,8 +82,8 @@ export default function Page() {
       if (data.user) localStorage.setItem("legalAssistantUser", JSON.stringify(data.user));
       setUser(data.user ?? { id: "me", email: info.email, name });
       setAuthState("authenticated");
-    } catch (e: any) {
-      setAuthError(e?.message || "Registration failed");
+    } catch (e: unknown) {
+      setAuthError(e instanceof Error ? e.message : "Registration failed");
     } finally {
       setIsLoading(false);
     }

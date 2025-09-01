@@ -1,7 +1,7 @@
 // src/components/ChatInterface.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Send,
   Scale,
@@ -40,7 +40,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4001";
 // ChatInterface.tsx (or your api utils)
 async function apiFetch(path: string, init: RequestInit = {}) {
   // Helper to perform a fetch and parse response as JSON or text
-  async function doFetch(withAuth = true): Promise<{ ok: boolean; status: number; data: any }> {
+  async function doFetch(withAuth = true): Promise<{ ok: boolean; status: number; data: unknown }> {
     const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
     const hdrs = new Headers(init.headers as HeadersInit | undefined);
     if (!hdrs.has("Content-Type")) hdrs.set("Content-Type", "application/json");
@@ -49,7 +49,7 @@ async function apiFetch(path: string, init: RequestInit = {}) {
     console.log("[apiFetch] →", { path, method: init.method ?? "GET" });
     const res = await fetch(`${API_URL}${path}`, { ...init, headers: hdrs });
     const raw = await res.text();
-    let data: any = null;
+    let data: unknown = null;
     try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
     console.log("[apiFetch] ←", { path, status: res.status });
     return { ok: res.ok, status: res.status, data };
@@ -92,12 +92,14 @@ async function apiFetch(path: string, init: RequestInit = {}) {
   }
 
   if (!ok) {
-    const message =
-      data && typeof data === "object" && ("message" in data || "error" in data)
-        ? (data.message ?? data.error)
-        : `HTTP ${status}`;
+    let message = `HTTP ${status}`;
+    if (data && typeof data === "object" && data !== null) {
+      const d = data as Record<string, unknown>;
+      const m = (d.message as string | undefined) ?? (d.error as string | undefined);
+      if (m) message = m;
+    }
     console.warn("[apiFetch] request failed", { path, status, message });
-    const err: any = new Error(message);
+    const err = new Error(message) as Error & { status?: number; data?: unknown };
     err.status = status;
     err.data = data;
     throw err;
@@ -325,7 +327,8 @@ export function ChatInterface() {
   } = useChatHistory();
 
   // Get user info from localStorage
-  const [user, setUser] = useState<any>(null);
+  type UserInfo = { id?: string; name?: string | null; email?: string | null } | null;
+  const [user, setUser] = useState<UserInfo>(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem("legalAssistantUser");
@@ -365,7 +368,7 @@ export function ChatInterface() {
     }
 
     // Reset chat state by clearing all sessions
-    sessions.forEach((session: any) => {
+    sessions.forEach((session) => {
       if (session.id) {
         deleteSession(session.id);
       }
@@ -375,23 +378,14 @@ export function ChatInterface() {
     window.location.href = "/";
   };
 
-  const messages = active?.messages ?? [];
+  const messages = useMemo(() => active?.messages ?? [], [active]);
   const hasHistory = messages.length > 0;
-
-  function ensureLocalId(): string {
-    let id = localStorage.getItem("currentSessionId");
-    if (!id) {
-      id = crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
-      localStorage.setItem("currentSessionId", id);
-    }
-    return id;
-  }
 
   type Session = {
     id: string;
     title: string;
     backendId?: string;
-    messages: any[];
+    messages: import("@/hooks/useChatHistory").Message[];
   };
 
   // ensureLocalSession is not needed - useChatHistory hook handles session creation
@@ -399,41 +393,49 @@ export function ChatInterface() {
   /* ──────────────────────────────────────────────────────────────────────────
      Utilities to map raw API result to the UI LegalResponse type
      ────────────────────────────────────────────────────────────────────────── */
-  function toLegalResponse(question: string, raw: any): LegalResponse {
+  function toLegalResponse(question: string, raw: unknown): LegalResponse {
+    const asObj = (v: unknown): Record<string, unknown> =>
+      typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+    const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+
+    const top = asObj(raw);
     if (
-      Array.isArray(raw.short_answer) ||
-      Array.isArray(raw.what_the_law_says)
+      Array.isArray(top.short_answer) ||
+      Array.isArray(top.what_the_law_says)
     ) {
       return {
-        traceId: raw.traceId ?? `ui-${Date.now()}`,
+        traceId: (top.traceId as string) ?? `ui-${Date.now()}`,
         question,
-        jurisdiction: raw.jurisdiction ?? "Ontario",
-        short_answer: raw.short_answer ?? ["No quick summary was returned."],
-        what_the_law_says: (raw.what_the_law_says ?? []).map((it: any) => ({
-          act: it.act ?? "Unknown Act",
-          section: it.section ?? "",
-          url: it.url ?? "",
-          quote: it.quote ?? "",
-        })),
-        caveats: raw.caveats ?? [],
-        sources: (raw.sources ?? [])
-          .map((s: any) => (typeof s === "string" ? s : s?.url))
+        jurisdiction: (top.jurisdiction as string) ?? "Ontario",
+        short_answer: (top.short_answer as string[]) ?? ["No quick summary was returned."],
+        what_the_law_says: arr(top.what_the_law_says).map((it) => {
+          const o = asObj(it);
+          return {
+            act: (o.act as string) ?? "Unknown Act",
+            section: (o.section as string) ?? "",
+            url: (o.url as string) ?? "",
+            quote: (o.quote as string) ?? "",
+          };
+        }),
+        caveats: (top.caveats as string[]) ?? [],
+        sources: arr(top.sources)
+          .map((s) => (typeof s === "string" ? s : (asObj(s).url as string)))
           .filter(Boolean),
-        followups: raw.followups ?? [],
+        followups: (top.followups as string[]) ?? [],
         confidence: (["high", "medium", "low"] as Confidence[]).includes(
-          raw.confidence
+          top.confidence as Confidence
         )
-          ? raw.confidence
+          ? (top.confidence as Confidence)
           : "low",
       };
     }
-    const ans = raw.answer;
-    if (typeof ans === "string") {
+    const ansRaw = top.answer;
+    if (typeof ansRaw === "string") {
       return {
-        traceId: raw.traceId ?? `ui-${Date.now()}`,
+        traceId: (top.traceId as string) ?? `ui-${Date.now()}`,
         question,
         jurisdiction: "Ontario",
-        short_answer: [ans],
+        short_answer: [ansRaw as string],
         what_the_law_says: [],
         caveats: [],
         sources: [],
@@ -441,26 +443,30 @@ export function ChatInterface() {
         confidence: "low",
       };
     }
+    const ans = asObj(ansRaw);
     return {
-      traceId: raw.traceId ?? `ui-${Date.now()}`,
+      traceId: (top.traceId as string) ?? `ui-${Date.now()}`,
       question,
       jurisdiction: "Ontario",
-      short_answer: ans?.short_answer ?? ["No quick summary was returned."],
-      what_the_law_says: (ans?.what_the_law_says ?? []).map((it: any) => ({
-        act: it.act ?? "Unknown Act",
-        section: it.section ?? "",
-        url: it.url ?? "",
-        quote: it.quote ?? "",
-      })),
-      caveats: ans?.caveats ?? [],
-      sources: (ans?.sources ?? [])
-        .map((s: any) => (typeof s === "string" ? s : s?.url))
+      short_answer: (ans.short_answer as string[]) ?? ["No quick summary was returned."],
+      what_the_law_says: arr(ans.what_the_law_says).map((it) => {
+        const o = asObj(it);
+        return {
+          act: (o.act as string) ?? "Unknown Act",
+          section: (o.section as string) ?? "",
+          url: (o.url as string) ?? "",
+          quote: (o.quote as string) ?? "",
+        };
+      }),
+      caveats: (ans.caveats as string[]) ?? [],
+      sources: arr(ans.sources)
+        .map((s) => (typeof s === "string" ? s : (asObj(s).url as string)))
         .filter(Boolean),
-      followups: ans?.followups ?? [],
+      followups: (ans.followups as string[]) ?? [],
       confidence: (["high", "medium", "low"] as Confidence[]).includes(
-        ans?.confidence
+        ans.confidence as Confidence
       )
-        ? ans.confidence
+        ? (ans.confidence as Confidence)
         : "low",
     };
   }
@@ -596,9 +602,7 @@ export function ChatInterface() {
     // Title will be auto-generated by useChatHistory hook
 
     // 2) Ensure a backend session id
-    let serverSessionId: string | undefined = sessions.find(
-      (s: any) => s.id === sid
-    )?.backendId;
+    let serverSessionId: string | undefined = sessions.find((s) => s.id === sid)?.backendId;
 
     if (!serverSessionId) {
       try {
@@ -654,10 +658,10 @@ export function ChatInterface() {
       // Auto-titling is handled by addMessageToActive in useChatHistory hook
 
       inputRef.current?.focus();
-    } catch (e: any) {
+    } catch (e: unknown) {
       addMessageToActive({
         type: "error",
-        content: e?.message || "Unexpected error. Please try again.",
+        content: e instanceof Error ? e.message : "Unexpected error. Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -944,7 +948,7 @@ export function ChatInterface() {
           <>
             <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
               <div className="mx-auto max-w-4xl space-y-6">
-                {messages.map((m: any) => (
+                {messages.map((m) => (
                   <div
                     key={m.id}
                     className={`flex ${
