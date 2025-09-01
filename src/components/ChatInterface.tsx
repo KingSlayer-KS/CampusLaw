@@ -321,10 +321,8 @@ export function ChatInterface() {
     deleteSession,
     renameSession,
     addMessageToActive,
-    /** Make sure your hook includes this; we guard below if not present */
-    // @ts-ignore
     bindBackendId,
-  } = useChatHistory() as any;
+  } = useChatHistory();
 
   // Get user info from localStorage
   const [user, setUser] = useState<any>(null);

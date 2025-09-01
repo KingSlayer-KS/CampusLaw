@@ -105,7 +105,7 @@ export function LegalServices() {
               </h3>
               <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
                 Our emergency legal hotline is available 24/7 for urgent matters. 
-                Don't wait when your legal status or rights are at risk.
+                Don&apos;t wait when your legal status or rights are at risk.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button size="lg" variant="destructive">

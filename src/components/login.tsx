@@ -202,7 +202,7 @@ export function Login({
         {/* Sign Up Link */}
         <div className="text-center mt-6">
           <p className="text-sm text-muted-foreground">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <button
               onClick={onSwitchToSignup}
               className="text-primary hover:underline font-medium"

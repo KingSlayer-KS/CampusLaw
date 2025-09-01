@@ -1,8 +1,11 @@
 // src/lib/logout.ts
+import type { Dispatch, SetStateAction } from "react";
+import type { ChatSession } from "@/hooks/useChatHistory";
+
 export async function logoutDirect(opts: {
-    setSessions: React.Dispatch<React.SetStateAction<Session[]>>;
+    setSessions: Dispatch<SetStateAction<ChatSession[]>>;
     setActiveId: (id: string | null) => void;
-    setUser?: (u: any | null) => void;
+    setUser?: (u: unknown | null) => void;
     redirect?: (path: string) => void;
   }) {
     const { setSessions, setActiveId, setUser, redirect } = opts;

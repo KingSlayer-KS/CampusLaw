@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
+type BasicUser = { name?: string | null; email?: string | null } | null | undefined;
 interface UserMenuProps {
-  user: any;
+  user: BasicUser;
   onLogout: () => void;
 }
 
@@ -30,7 +31,7 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
       .slice(0, 2);
   };
 
-  const displayName = user?.name || user?.email || "User";
+  const displayName = (user?.name || user?.email || "User") as string;
   const initials = user?.name ? getUserInitials(user.name) : "U";
 
   return (

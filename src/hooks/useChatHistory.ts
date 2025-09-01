@@ -303,7 +303,7 @@ export function useChatHistory() {
             id: string;
             role: string;
             content: string;
-            legalResponse?: any;
+            legalResponse?: unknown;
             createdAt?: string;
           }>;
         };
@@ -418,23 +418,23 @@ export function useChatHistory() {
 
     // Check if this is the first user message and we should auto-title
     const shouldAutoTitle =
-      (msg as any).type === "user" &&
+      msg.type === "user" &&
       active.messages.length === 0 &&
       (active.title === "New chat" || !active.title);
 
     console.log("[addMessageToActive] auto-title check:", {
-      isUser: (msg as any).type === "user",
+      isUser: msg.type === "user",
       messageCount: active.messages.length,
       currentTitle: active.title,
       shouldAutoTitle,
-      content: (msg as any).content,
+      content: msg.content,
     });
 
     addMessageById(active.id, msg);
 
     // auto-title on first user msg
     if (shouldAutoTitle) {
-      const title = ((msg as any).content || "New chat").slice(0, 40);
+      const title = (msg.content || "New chat").slice(0, 40);
       console.log("[addMessageToActive] auto-titling with:", title);
       renameSession(active.id, title);
 

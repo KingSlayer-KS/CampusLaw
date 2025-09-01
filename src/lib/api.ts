@@ -23,6 +23,6 @@ export type FrontendAnswer = {
       body: JSON.stringify(payload),
     });
     if (!r.ok) throw new Error(`Ask failed: ${r.status}`);
-    return (await r.json()) as { answer: FrontendAnswer; cites: any[]; traceId: string };
+    return (await r.json()) as { answer: FrontendAnswer; cites: unknown[]; traceId: string };
   }
   
