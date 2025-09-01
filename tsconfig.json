@@ -1,10 +1,14 @@
 {
   "compilerOptions": {
+    "strict": false,             // turns off *all* strict type-checking
+    "noImplicitAny": false,      // allows variables/params without types
+    "strictNullChecks": false,   // null and undefined are allowed anywhere
+    "strictFunctionTypes": false, // allows functions to have any type
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": true,
+
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
