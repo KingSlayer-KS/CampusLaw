@@ -308,14 +308,22 @@ export function useChatHistory() {
           }>;
         };
         console.log("[history] load messages ←", { count: data.messages?.length ?? 0 });
-        const msgs = (data.messages || []).map((m) => ({
+        const toLegalResponse = (val: unknown): LegalResponse | undefined => {
+          if (!val || typeof val !== "object") return undefined;
+          const o = val as Record<string, unknown>;
+          if (typeof o.traceId !== "string") return undefined;
+          // Trust backend shape when traceId exists; fallback handled by UI elsewhere
+          return o as unknown as LegalResponse;
+        };
+
+        const msgs: Message[] = (data.messages || []).map((m) => ({
           id: m.id,
           type:
             m.role === "user" || m.role === "assistant" || m.role === "error"
               ? (m.role as Message["type"])
               : ("assistant" as Message["type"]),
           content: m.content ?? "",
-          legalResponse: m.legalResponse ?? undefined,
+          legalResponse: toLegalResponse(m.legalResponse),
           timestamp: m.createdAt || new Date().toISOString(),
         }));
         setSessions((prev) =>
