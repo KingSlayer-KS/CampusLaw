@@ -10,8 +10,20 @@ function forwardAuth(req: Request) {
   return m ? `Bearer ${decodeURIComponent(m[1])}` : undefined;
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const r = await fetch(`${API}/history/${params.id}/messages`, {
+function extractIdFromUrl(url: string): string | undefined {
+  try {
+    const { pathname } = new URL(url);
+    const m = pathname.match(/\/api\/history\/([^/]+)\/messages/);
+    return m?.[1];
+  } catch {
+    return undefined;
+  }
+}
+
+export async function GET(req: Request) {
+  const id = extractIdFromUrl(req.url);
+  if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
+  const r = await fetch(`${API}/history/${id}/messages`, {
     headers: { ...(forwardAuth(req) ? { Authorization: forwardAuth(req)! } : {}) },
   });
   return new NextResponse(await r.text(), {
@@ -20,8 +32,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   });
 }
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const r = await fetch(`${API}/history/${params.id}/messages`, {
+export async function POST(req: Request) {
+  const id = extractIdFromUrl(req.url);
+  if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
+  const r = await fetch(`${API}/history/${id}/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
